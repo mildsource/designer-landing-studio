@@ -2,18 +2,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Calendar as CalendarIcon, Send, Clock } from "lucide-react";
-import { useState } from "react";
+import { Mail, Calendar as CalendarIcon, Send, Clock, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addDays, isWeekend, isBefore, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 
 const contactFormSchema = z.object({
   name: z.string().trim().min(1, { message: "Name is required" }).max(100, { message: "Name must be less than 100 characters" }),
@@ -25,17 +27,28 @@ const schedulerSchema = z.object({
   name: z.string().trim().min(1, { message: "Name is required" }).max(100),
   email: z.string().trim().email({ message: "Invalid email address" }).max(255),
   date: z.date({ required_error: "Please select a date" }),
-  time: z.string().min(1, { message: "Please select a time slot" })
+  time: z.string().min(1, { message: "Please select a time slot" }),
+  notes: z.string().max(500).optional()
 });
 
-const timeSlots = [
-  "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-  "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"
+// Available time slots with smarter availability
+const allTimeSlots = [
+  { time: "09:00 AM", available: true },
+  { time: "10:00 AM", available: true },
+  { time: "11:00 AM", available: true },
+  { time: "12:00 PM", available: false }, // Lunch break
+  { time: "02:00 PM", available: true },
+  { time: "03:00 PM", available: true },
+  { time: "04:00 PM", available: true },
+  { time: "05:00 PM", available: true }
 ];
 
 const Contact = () => {
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const contactForm = useForm<z.infer<typeof contactFormSchema>>({
     resolver: zodResolver(contactFormSchema),
@@ -44,8 +57,45 @@ const Contact = () => {
 
   const schedulerForm = useForm<z.infer<typeof schedulerSchema>>({
     resolver: zodResolver(schedulerSchema),
-    defaultValues: { name: "", email: "", time: "" }
+    defaultValues: { name: "", email: "", time: "", notes: "" }
   });
+
+  // Pre-fill form if user is logged in
+  useEffect(() => {
+    if (user) {
+      const fetchProfile = async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (data) {
+          schedulerForm.setValue("name", data.full_name || "");
+          schedulerForm.setValue("email", user.email || "");
+        }
+      };
+      fetchProfile();
+    }
+  }, [user]);
+
+  // Fetch booked slots when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchBookedSlots = async () => {
+        const { data } = await supabase
+          .from("scheduled_calls")
+          .select("scheduled_time")
+          .eq("scheduled_date", format(selectedDate, "yyyy-MM-dd"))
+          .neq("status", "cancelled");
+
+        if (data) {
+          setBookedSlots(data.map(slot => slot.scheduled_time));
+        }
+      };
+      fetchBookedSlots();
+    }
+  }, [selectedDate]);
 
   const onContactSubmit = async (data: z.infer<typeof contactFormSchema>) => {
     try {
@@ -71,14 +121,48 @@ const Contact = () => {
     }
   };
 
-  const onSchedulerSubmit = (data: z.infer<typeof schedulerSchema>) => {
-    toast({
-      title: "Call scheduled!",
-      description: `Your call is scheduled for ${format(data.date, "PPP")} at ${data.time}`,
-    });
-    schedulerForm.reset();
-    setSelectedDate(undefined);
-    setSelectedTime("");
+  const onSchedulerSubmit = async (data: z.infer<typeof schedulerSchema>) => {
+    setIsSubmitting(true);
+    
+    const { error } = await supabase
+      .from("scheduled_calls")
+      .insert({
+        user_id: user?.id || null,
+        guest_name: data.name,
+        guest_email: data.email,
+        scheduled_date: format(data.date, "yyyy-MM-dd"),
+        scheduled_time: data.time,
+        notes: data.notes || null,
+        status: "pending"
+      });
+
+    setIsSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Booking failed",
+        description: "Unable to schedule the call. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Call scheduled!",
+        description: `Your call is confirmed for ${format(data.date, "PPP")} at ${data.time}`,
+      });
+      schedulerForm.reset();
+      setSelectedDate(undefined);
+      setSelectedTime("");
+    }
+  };
+
+  const isSlotAvailable = (time: string) => {
+    const slot = allTimeSlots.find(s => s.time === time);
+    return slot?.available && !bookedSlots.includes(time);
+  };
+
+  const isDateDisabled = (date: Date) => {
+    const today = startOfToday();
+    return isBefore(date, today) || isWeekend(date);
   };
 
   return (
@@ -178,7 +262,18 @@ const Contact = () => {
                 <CardHeader>
                   <CardTitle>Schedule a Call</CardTitle>
                   <CardDescription>
-                    Choose a date and time that works best for you.
+                    Choose a date and time that works best for you. Weekdays only.
+                    {user && (
+                      <span className="flex items-center gap-1 mt-2 text-accent">
+                        <CheckCircle className="w-4 h-4" />
+                        Signed in - your calls will be saved to your dashboard
+                      </span>
+                    )}
+                    {!user && (
+                      <span className="block mt-2">
+                        <Link to="/auth" className="text-accent hover:underline">Sign in</Link> to manage your scheduled calls
+                      </span>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -212,6 +307,23 @@ const Contact = () => {
                               </FormItem>
                             )}
                           />
+                          <FormField
+                            control={schedulerForm.control}
+                            name="notes"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Notes (optional)</FormLabel>
+                                <FormControl>
+                                  <Textarea 
+                                    placeholder="What would you like to discuss?" 
+                                    className="min-h-[80px]"
+                                    {...field} 
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
 
                         <FormField
@@ -226,8 +338,12 @@ const Contact = () => {
                                 onSelect={(date) => {
                                   field.onChange(date);
                                   setSelectedDate(date);
+                                  setSelectedTime("");
+                                  schedulerForm.setValue("time", "");
                                 }}
-                                disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
+                                disabled={isDateDisabled}
+                                fromDate={new Date()}
+                                toDate={addDays(new Date(), 60)}
                                 className={cn("rounded-md border pointer-events-auto")}
                               />
                               <FormMessage />
@@ -243,32 +359,49 @@ const Contact = () => {
                           <FormItem>
                             <FormLabel>Select Time Slot</FormLabel>
                             <div className="grid grid-cols-4 gap-2">
-                              {timeSlots.map((time) => (
-                                <Button
-                                  key={time}
-                                  type="button"
-                                  variant={field.value === time ? "default" : "outline"}
-                                  className={cn(
-                                    "w-full",
-                                    field.value === time && "bg-accent hover:bg-accent/90"
-                                  )}
-                                  onClick={() => {
-                                    field.onChange(time);
-                                    setSelectedTime(time);
-                                  }}
-                                >
-                                  <Clock className="w-3 h-3 mr-1" />
-                                  {time}
-                                </Button>
-                              ))}
+                              {allTimeSlots.map((slot) => {
+                                const available = isSlotAvailable(slot.time);
+                                return (
+                                  <Button
+                                    key={slot.time}
+                                    type="button"
+                                    variant={field.value === slot.time ? "default" : "outline"}
+                                    disabled={!available || !selectedDate}
+                                    className={cn(
+                                      "w-full",
+                                      field.value === slot.time && "bg-accent hover:bg-accent/90",
+                                      !available && "opacity-50 line-through"
+                                    )}
+                                    onClick={() => {
+                                      if (available) {
+                                        field.onChange(slot.time);
+                                        setSelectedTime(slot.time);
+                                      }
+                                    }}
+                                  >
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    {slot.time}
+                                  </Button>
+                                );
+                              })}
                             </div>
+                            {selectedDate && bookedSlots.length > 0 && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                Crossed out times are already booked
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <Button type="submit" size="lg" className="w-full bg-accent hover:bg-accent/90">
-                        Schedule Call
+                      <Button 
+                        type="submit" 
+                        size="lg" 
+                        className="w-full bg-accent hover:bg-accent/90"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? "Scheduling..." : "Schedule Call"}
                         <CalendarIcon className="ml-2 w-4 h-4" />
                       </Button>
                     </form>
