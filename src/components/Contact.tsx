@@ -98,36 +98,54 @@ const Contact = () => {
   }, [selectedDate]);
 
   const onContactSubmit = async (data: z.infer<typeof contactFormSchema>) => {
-    try {
-      await fetch('/api/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      
+    if (!user) {
       toast({
-        title: "Message sent!",
-        description: "Thank you for reaching out. I'll get back to you soon.",
+        title: "Authentication required",
+        description: "Please sign in to send a message.",
+        variant: "destructive",
       });
-      contactForm.reset();
-    } catch (error) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("contact_messages")
+      .insert({
+        name: data.name,
+        email: data.email,
+        message: data.message,
+      });
+
+    if (error) {
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
+    } else {
+      toast({
+        title: "Message sent!",
+        description: "Thank you for reaching out. I'll get back to you soon.",
+      });
+      contactForm.reset();
     }
   };
 
   const onSchedulerSubmit = async (data: z.infer<typeof schedulerSchema>) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to schedule a call.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     const { error } = await supabase
       .from("scheduled_calls")
       .insert({
-        user_id: user?.id || null,
+        user_id: user.id,
         guest_name: data.name,
         guest_email: data.email,
         scheduled_date: format(data.date, "yyyy-MM-dd"),
@@ -202,57 +220,66 @@ const Contact = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Form {...contactForm}>
-                    <form onSubmit={contactForm.handleSubmit(onContactSubmit)} className="space-y-6">
-                      <FormField
-                        control={contactForm.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Your name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={contactForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="your.email@example.com" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={contactForm.control}
-                        name="message"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Message</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                placeholder="Tell me about your project..." 
-                                className="min-h-[120px]"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button type="submit" size="lg" className="w-full bg-accent hover:bg-accent/90">
-                        Send Message
-                        <Send className="ml-2 w-4 h-4" />
+                  {!user ? (
+                    <div className="text-center py-8 space-y-4">
+                      <p className="text-muted-foreground">Please sign in to send a message.</p>
+                      <Button asChild>
+                        <Link to="/auth">Sign In</Link>
                       </Button>
-                    </form>
-                  </Form>
+                    </div>
+                  ) : (
+                    <Form {...contactForm}>
+                      <form onSubmit={contactForm.handleSubmit(onContactSubmit)} className="space-y-6">
+                        <FormField
+                          control={contactForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Your name" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={contactForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="your.email@example.com" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={contactForm.control}
+                          name="message"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Message</FormLabel>
+                              <FormControl>
+                                <Textarea 
+                                  placeholder="Tell me about your project..." 
+                                  className="min-h-[120px]"
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit" size="lg" className="w-full bg-accent hover:bg-accent/90">
+                          Send Message
+                          <Send className="ml-2 w-4 h-4" />
+                        </Button>
+                      </form>
+                    </Form>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -269,57 +296,86 @@ const Contact = () => {
                         Signed in - your calls will be saved to your dashboard
                       </span>
                     )}
-                    {!user && (
-                      <span className="block mt-2">
-                        <Link to="/auth" className="text-accent hover:underline">Sign in</Link> to manage your scheduled calls
-                      </span>
-                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Form {...schedulerForm}>
-                    <form onSubmit={schedulerForm.handleSubmit(onSchedulerSubmit)} className="space-y-6">
-                      <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
+                  {!user ? (
+                    <div className="text-center py-8 space-y-4">
+                      <p className="text-muted-foreground">Please sign in to schedule a call.</p>
+                      <Button asChild>
+                        <Link to="/auth">Sign In</Link>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Form {...schedulerForm}>
+                      <form onSubmit={schedulerForm.handleSubmit(onSchedulerSubmit)} className="space-y-6">
+                        <div className="grid md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <FormField
+                              control={schedulerForm.control}
+                              name="name"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Name</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Your name" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={schedulerForm.control}
+                              name="email"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Email</FormLabel>
+                                  <FormControl>
+                                    <Input type="email" placeholder="your.email@example.com" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={schedulerForm.control}
+                              name="notes"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Notes (optional)</FormLabel>
+                                  <FormControl>
+                                    <Textarea 
+                                      placeholder="What would you like to discuss?" 
+                                      className="min-h-[80px]"
+                                      {...field} 
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
                           <FormField
                             control={schedulerForm.control}
-                            name="name"
+                            name="date"
                             render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Your name" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={schedulerForm.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                  <Input type="email" placeholder="your.email@example.com" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={schedulerForm.control}
-                            name="notes"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Notes (optional)</FormLabel>
-                                <FormControl>
-                                  <Textarea 
-                                    placeholder="What would you like to discuss?" 
-                                    className="min-h-[80px]"
-                                    {...field} 
-                                  />
-                                </FormControl>
+                              <FormItem className="flex flex-col">
+                                <FormLabel>Select Date</FormLabel>
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={(date) => {
+                                    field.onChange(date);
+                                    setSelectedDate(date);
+                                    setSelectedTime("");
+                                    schedulerForm.setValue("time", "");
+                                  }}
+                                  disabled={isDateDisabled}
+                                  fromDate={new Date()}
+                                  toDate={addDays(new Date(), 60)}
+                                  className={cn("rounded-md border pointer-events-auto")}
+                                />
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -328,84 +384,59 @@ const Contact = () => {
 
                         <FormField
                           control={schedulerForm.control}
-                          name="date"
+                          name="time"
                           render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Select Date</FormLabel>
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={(date) => {
-                                  field.onChange(date);
-                                  setSelectedDate(date);
-                                  setSelectedTime("");
-                                  schedulerForm.setValue("time", "");
-                                }}
-                                disabled={isDateDisabled}
-                                fromDate={new Date()}
-                                toDate={addDays(new Date(), 60)}
-                                className={cn("rounded-md border pointer-events-auto")}
-                              />
+                            <FormItem>
+                              <FormLabel>Select Time Slot</FormLabel>
+                              <div className="grid grid-cols-4 gap-2">
+                                {allTimeSlots.map((slot) => {
+                                  const available = isSlotAvailable(slot.time);
+                                  return (
+                                    <Button
+                                      key={slot.time}
+                                      type="button"
+                                      variant={field.value === slot.time ? "default" : "outline"}
+                                      disabled={!available || !selectedDate}
+                                      className={cn(
+                                        "w-full",
+                                        field.value === slot.time && "bg-accent hover:bg-accent/90",
+                                        !available && "opacity-50 line-through"
+                                      )}
+                                      onClick={() => {
+                                        if (available) {
+                                          field.onChange(slot.time);
+                                          setSelectedTime(slot.time);
+                                        }
+                                      }}
+                                    >
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      {slot.time}
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                              {selectedDate && bookedSlots.length > 0 && (
+                                <p className="text-sm text-muted-foreground mt-2">
+                                  Crossed out times are already booked
+                                </p>
+                              )}
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
 
-                      <FormField
-                        control={schedulerForm.control}
-                        name="time"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Select Time Slot</FormLabel>
-                            <div className="grid grid-cols-4 gap-2">
-                              {allTimeSlots.map((slot) => {
-                                const available = isSlotAvailable(slot.time);
-                                return (
-                                  <Button
-                                    key={slot.time}
-                                    type="button"
-                                    variant={field.value === slot.time ? "default" : "outline"}
-                                    disabled={!available || !selectedDate}
-                                    className={cn(
-                                      "w-full",
-                                      field.value === slot.time && "bg-accent hover:bg-accent/90",
-                                      !available && "opacity-50 line-through"
-                                    )}
-                                    onClick={() => {
-                                      if (available) {
-                                        field.onChange(slot.time);
-                                        setSelectedTime(slot.time);
-                                      }
-                                    }}
-                                  >
-                                    <Clock className="w-3 h-3 mr-1" />
-                                    {slot.time}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                            {selectedDate && bookedSlots.length > 0 && (
-                              <p className="text-sm text-muted-foreground mt-2">
-                                Crossed out times are already booked
-                              </p>
-                            )}
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <Button 
-                        type="submit" 
-                        size="lg" 
-                        className="w-full bg-accent hover:bg-accent/90"
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting ? "Scheduling..." : "Schedule Call"}
-                        <CalendarIcon className="ml-2 w-4 h-4" />
-                      </Button>
-                    </form>
-                  </Form>
+                        <Button 
+                          type="submit" 
+                          size="lg" 
+                          className="w-full bg-accent hover:bg-accent/90"
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? "Scheduling..." : "Schedule Call"}
+                          <CalendarIcon className="ml-2 w-4 h-4" />
+                        </Button>
+                      </form>
+                    </Form>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
