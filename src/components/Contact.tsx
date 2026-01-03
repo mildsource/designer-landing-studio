@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { toast } from "@/hooks/use-toast";
 import { format, addDays, isWeekend, isBefore, startOfToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -64,14 +64,14 @@ const Contact = () => {
   useEffect(() => {
     if (user) {
       const fetchProfile = async () => {
-        const { data } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("user_id", user.id)
-          .single();
-        
-        if (data) {
-          schedulerForm.setValue("name", data.full_name || "");
+        try {
+          const data = await api.getProfile();
+          if (data) {
+            schedulerForm.setValue("name", data.full_name || "");
+            schedulerForm.setValue("email", user.email || "");
+          }
+        } catch (error) {
+          // Profile fetch failed, use user email
           schedulerForm.setValue("email", user.email || "");
         }
       };
@@ -83,14 +83,11 @@ const Contact = () => {
   useEffect(() => {
     if (selectedDate) {
       const fetchBookedSlots = async () => {
-        const { data } = await supabase
-          .from("scheduled_calls")
-          .select("scheduled_time")
-          .eq("scheduled_date", format(selectedDate, "yyyy-MM-dd"))
-          .neq("status", "cancelled");
-
-        if (data) {
-          setBookedSlots(data.map(slot => slot.scheduled_time));
+        try {
+          const slots = await api.getAvailability(format(selectedDate, "yyyy-MM-dd"));
+          setBookedSlots(slots);
+        } catch (error) {
+          console.error('Failed to fetch availability:', error);
         }
       };
       fetchBookedSlots();
@@ -107,26 +104,23 @@ const Contact = () => {
       return;
     }
 
-    const { error } = await supabase
-      .from("contact_messages")
-      .insert({
+    try {
+      await api.submitContact({
         name: data.name,
         email: data.email,
         message: data.message,
       });
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-    } else {
       toast({
         title: "Message sent!",
         description: "Thank you for reaching out. I'll get back to you soon.",
       });
       contactForm.reset();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -142,27 +136,14 @@ const Contact = () => {
 
     setIsSubmitting(true);
     
-    const { error } = await supabase
-      .from("scheduled_calls")
-      .insert({
-        user_id: user.id,
+    try {
+      await api.createScheduledCall({
         guest_name: data.name,
         guest_email: data.email,
         scheduled_date: format(data.date, "yyyy-MM-dd"),
         scheduled_time: data.time,
-        notes: data.notes || null,
-        status: "pending"
+        notes: data.notes || undefined,
       });
-
-    setIsSubmitting(false);
-
-    if (error) {
-      toast({
-        title: "Booking failed",
-        description: "Unable to schedule the call. Please try again.",
-        variant: "destructive",
-      });
-    } else {
       toast({
         title: "Call scheduled!",
         description: `Your call is confirmed for ${format(data.date, "PPP")} at ${data.time}`,
@@ -170,7 +151,15 @@ const Contact = () => {
       schedulerForm.reset();
       setSelectedDate(undefined);
       setSelectedTime("");
+    } catch (error) {
+      toast({
+        title: "Booking failed",
+        description: "Unable to schedule the call. Please try again.",
+        variant: "destructive",
+      });
     }
+
+    setIsSubmitting(false);
   };
 
   const isSlotAvailable = (time: string) => {
@@ -429,9 +418,9 @@ const Contact = () => {
                           type="submit" 
                           size="lg" 
                           className="w-full bg-accent hover:bg-accent/90"
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || !selectedDate || !selectedTime}
                         >
-                          {isSubmitting ? "Scheduling..." : "Schedule Call"}
+                          {isSubmitting ? "Booking..." : "Confirm Booking"}
                           <CalendarIcon className="ml-2 w-4 h-4" />
                         </Button>
                       </form>

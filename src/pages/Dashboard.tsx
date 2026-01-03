@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,19 +69,16 @@ const Dashboard = () => {
   const fetchProfile = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data) {
+    try {
+      const data = await api.getProfile();
       setProfile(data);
       profileForm.reset({
         fullName: data.full_name || "",
         phone: data.phone || "",
         company: data.company || "",
       });
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
     }
     setLoadingData(false);
   };
@@ -89,14 +86,11 @@ const Dashboard = () => {
   const fetchScheduledCalls = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from("scheduled_calls")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("scheduled_date", { ascending: true });
-
-    if (data) {
+    try {
+      const data = await api.getScheduledCalls();
       setScheduledCalls(data);
+    } catch (error) {
+      console.error('Failed to fetch scheduled calls:', error);
     }
   };
 
@@ -104,50 +98,41 @@ const Dashboard = () => {
     if (!user) return;
     
     setIsUpdating(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
+    try {
+      await api.updateProfile({
         full_name: data.fullName,
-        phone: data.phone || null,
-        company: data.company || null,
-      })
-      .eq("user_id", user.id);
-
-    setIsUpdating(false);
-
-    if (error) {
-      toast({
-        title: "Update failed",
-        description: error.message,
-        variant: "destructive",
+        phone: data.phone || undefined,
+        company: data.company || undefined,
       });
-    } else {
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
       });
       fetchProfile();
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
     }
+    setIsUpdating(false);
   };
 
   const handleCancelCall = async (callId: string) => {
-    const { error } = await supabase
-      .from("scheduled_calls")
-      .update({ status: "cancelled" })
-      .eq("id", callId);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to cancel the call.",
-        variant: "destructive",
-      });
-    } else {
+    try {
+      await api.updateScheduledCall(callId, { status: "cancelled" });
       toast({
         title: "Call cancelled",
         description: "The scheduled call has been cancelled.",
       });
       fetchScheduledCalls();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel the call.",
+        variant: "destructive",
+      });
     }
   };
 
