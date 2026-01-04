@@ -1,70 +1,66 @@
 # Studio - Self-Hosted Application
 
-A fully self-hosted React + Express application with SQLite database and JWT authentication.
+A production-ready, self-hosted Node.js application with Express backend and React frontend.
 
-## Prerequisites
+## Deployment (Dokploy / VPS)
 
-- Node.js 18+ 
-- npm or yarn
+### Environment Variables
 
-## Quick Start
+Set these in your deployment platform:
 
-1. **Clone and install dependencies:**
-   ```bash
-   npm install
-   ```
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PORT` | No | `3000` | Server port |
+| `JWT_SECRET` | **Yes** | - | Secret key for JWT tokens |
+| `NODE_ENV` | No | - | Set to `production` |
+| `DATABASE_PATH` | No | `./data/studio.db` | SQLite database path |
 
-2. **Create environment file:**
-   ```bash
-   cp .env.example .env
-   ```
+### Dokploy Configuration
 
-3. **Update the `.env` file** with your configuration:
-   - `JWT_SECRET`: Change to a secure random string for production
-   - `DATABASE_PATH`: Path to SQLite database file (default: `./data/studio.db`)
+1. **Build Command:** `npm install && npm run build`
+2. **Start Command:** `npm start`
 
-4. **Start development servers:**
-   ```bash
-   npm run dev:full
-   ```
+The application will be ready immediately after deployment - no manual steps required.
 
-   This starts both:
-   - Frontend (Vite) on http://localhost:8080
-   - Backend (Express) on http://localhost:3001
+## Required package.json Scripts
 
-## Available Scripts
+After cloning, add these scripts to your `package.json`:
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start frontend development server only |
-| `npm run dev:server` | Start backend development server only |
-| `npm run dev:full` | Start both frontend and backend concurrently |
-| `npm run build` | Build frontend for production |
-| `npm run build:server` | Compile backend TypeScript |
-| `npm run build:all` | Build both frontend and backend |
-| `npm run start` | Start production server (serves frontend + API) |
-| `npm run preview` | Preview production frontend build |
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:full": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "start": "node dist-server/index.js",
+    "preview": "vite preview"
+  }
+}
+```
 
-## Production Deployment
+## Architecture
 
-1. **Build the application:**
-   ```bash
-   npm run build:all
-   ```
+- **Frontend:** React + Vite (built to `/dist`)
+- **Backend:** Express + SQLite (built to `/dist-server`)
+- **Production:** Single Node.js process serves both API and static files
+- **API Routes:** All under `/api/*` (relative paths, works behind reverse proxy)
 
-2. **Set environment variables:**
-   ```bash
-   export NODE_ENV=production
-   export JWT_SECRET=your-secure-secret-key
-   export PORT=3001
-   ```
+## Local Development
 
-3. **Start the server:**
-   ```bash
-   npm start
-   ```
+```bash
+# Install dependencies
+npm install
 
-   The server will serve both the static frontend files and the API endpoints.
+# Create .env file (optional - has sensible defaults)
+cp .env.example .env
+
+# Run both frontend and backend
+npm run dev:full
+
+# Frontend: http://localhost:8080 (proxies to backend)
+# Backend: http://localhost:3000
+```
 
 ## Project Structure
 
@@ -75,18 +71,14 @@ A fully self-hosted React + Express application with SQLite database and JWT aut
 │   ├── middleware/        # Express middleware
 │   │   └── auth.ts        # JWT authentication
 │   └── routes/            # API route handlers
-│       ├── auth.ts        # Authentication endpoints
-│       ├── profiles.ts    # User profile endpoints
-│       ├── scheduled-calls.ts  # Call scheduling endpoints
-│       └── contact.ts     # Contact form endpoint
 ├── src/                   # Frontend React application
 │   ├── components/        # React components
 │   ├── contexts/          # React contexts (Auth)
-│   ├── lib/              # Utilities and API client
-│   │   └── api.ts        # REST API client
-│   └── pages/            # Page components
-├── data/                  # SQLite database storage (created at runtime)
-└── dist/                  # Production frontend build
+│   ├── lib/api.ts         # REST API client
+│   └── pages/             # Page components
+├── data/                  # SQLite database (created at runtime)
+├── dist/                  # Production frontend build
+└── dist-server/           # Production backend build
 ```
 
 ## API Endpoints
@@ -102,12 +94,15 @@ A fully self-hosted React + Express application with SQLite database and JWT aut
 
 ### Scheduled Calls
 - `GET /api/scheduled-calls` - Get user's scheduled calls (requires auth)
-- `GET /api/scheduled-calls/availability/:date` - Get booked slots for a date (public)
+- `GET /api/scheduled-calls/availability/:date` - Get booked slots (public)
 - `POST /api/scheduled-calls` - Create scheduled call (requires auth)
 - `PATCH /api/scheduled-calls/:id` - Update scheduled call (requires auth)
 
 ### Contact
 - `POST /api/contact` - Submit contact message (requires auth)
+
+### Health Check
+- `GET /api/health` - Server health check
 
 ## Technology Stack
 
@@ -116,17 +111,6 @@ A fully self-hosted React + Express application with SQLite database and JWT aut
 - **Database:** SQLite (via better-sqlite3)
 - **Authentication:** JWT (jsonwebtoken)
 - **Password Hashing:** bcryptjs
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | Backend API URL for frontend | `http://localhost:3001/api` |
-| `PORT` | Backend server port | `3001` |
-| `JWT_SECRET` | Secret key for JWT signing | (required in production) |
-| `DATABASE_PATH` | Path to SQLite database file | `./data/studio.db` |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:8080` |
-| `NODE_ENV` | Environment mode | `development` |
 
 ## License
 

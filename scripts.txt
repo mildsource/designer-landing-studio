@@ -1,12 +1,27 @@
-# Custom npm scripts for self-hosted deployment
-# Add these to your package.json scripts section:
+# DOKPLOY DEPLOYMENT INSTRUCTIONS
+# ================================
+# 
+# 1. Environment Variables (set in Dokploy):
+#    - PORT: (optional, defaults to 3000)
+#    - JWT_SECRET: (required - generate a secure random string)
+#    - NODE_ENV: production
 #
-# "dev:server": "tsx watch server/index.ts",
-# "dev:full": "concurrently \"npm run dev\" \"npm run dev:server\"",
-# "build:server": "tsc -p tsconfig.server.json",
-# "build:all": "npm run build && npm run build:server",
-# "start": "NODE_ENV=production node dist-server/index.js"
+# 2. Build Command: npm install && npm run build
+# 3. Start Command: npm start
 #
-# Note: package.json is read-only in Lovable.
-# To use these scripts after exporting/cloning the project,
-# manually add them to the "scripts" section of package.json.
+# Required package.json scripts (add manually after cloning):
+# 
+# "scripts": {
+#   "dev": "vite",
+#   "dev:server": "tsx watch server/index.ts",
+#   "dev:full": "concurrently \"npm run dev\" \"npm run dev:server\"",
+#   "build": "vite build && tsc -p tsconfig.server.json",
+#   "start": "node dist-server/index.js",
+#   "preview": "vite preview"
+# }
+#
+# The app will:
+# - Build frontend to /dist
+# - Build backend to /dist-server  
+# - Serve both from single Node.js process on PORT
+# - Use relative /api/* paths (works behind reverse proxy)
