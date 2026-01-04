@@ -95,15 +95,6 @@ const Contact = () => {
   }, [selectedDate]);
 
   const onContactSubmit = async (data: z.infer<typeof contactFormSchema>) => {
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to send a message.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       await api.submitContact({
         name: data.name,
@@ -209,66 +200,57 @@ const Contact = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {!user ? (
-                    <div className="text-center py-8 space-y-4">
-                      <p className="text-muted-foreground">Please sign in to send a message.</p>
-                      <Button asChild>
-                        <Link to="/auth">Sign In</Link>
+                  <Form {...contactForm}>
+                    <form onSubmit={contactForm.handleSubmit(onContactSubmit)} className="space-y-6">
+                      <FormField
+                        control={contactForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Your name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={contactForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="your.email@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={contactForm.control}
+                        name="message"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Message</FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="Tell me about your project..." 
+                                className="min-h-[120px]"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button type="submit" size="lg" className="w-full bg-accent hover:bg-accent/90">
+                        Send Message
+                        <Send className="ml-2 w-4 h-4" />
                       </Button>
-                    </div>
-                  ) : (
-                    <Form {...contactForm}>
-                      <form onSubmit={contactForm.handleSubmit(onContactSubmit)} className="space-y-6">
-                        <FormField
-                          control={contactForm.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Name</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Your name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={contactForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <Input type="email" placeholder="your.email@example.com" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={contactForm.control}
-                          name="message"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Message</FormLabel>
-                              <FormControl>
-                                <Textarea 
-                                  placeholder="Tell me about your project..." 
-                                  className="min-h-[120px]"
-                                  {...field} 
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button type="submit" size="lg" className="w-full bg-accent hover:bg-accent/90">
-                          Send Message
-                          <Send className="ml-2 w-4 h-4" />
-                        </Button>
-                      </form>
-                    </Form>
-                  )}
+                    </form>
+                  </Form>
                 </CardContent>
               </Card>
             </TabsContent>
