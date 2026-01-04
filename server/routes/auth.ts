@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../database';
-import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth';
+import db from '../database.js';
+import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
