@@ -112,12 +112,11 @@ class ApiClient {
     });
   }
 
-  // Contact
+  // Contact (no auth required - public form)
   async submitContact(data: { name: string; email: string; message: string }) {
     return this.request<any>('/contact', {
       method: 'POST',
       body: JSON.stringify(data),
-      requireAuth: true,
     });
   }
 }
